@@ -18,6 +18,7 @@ import (
 
 type UDPTransport struct {
 	conn net.Conn
+	transportBase
 }
 
 func NewUDPTransport(scheme string, host string, port int) *UDPTransport {
@@ -44,9 +45,14 @@ func (t *UDPTransport) SendAndReceive(interest *ndn.Interest) error {
 	// Wait for response until timeout
 	t.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 	readBuf := make([]byte, 8800)
-	_, err = t.conn.Read(readBuf)
+	readSize, err := t.conn.Read(readBuf)
 	t.conn.Close()
 
 	// If err not nil, likely timed out or another issue
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Make sure reply is Data packet and not Nack
+	return t.validateReceivedWire(readBuf[:readSize])
 }

@@ -37,7 +37,7 @@ func parseUDP(str string) (*URI, error) {
 	if len(split1) < 3 {
 		return nil, errors.New("incorrect URI format")
 	}
-	uri.scheme = split1[0]
+	uri.scheme = split1[0][:len(split1[0])-1] // Exclude trailing :
 	split2 := strings.SplitN(split1[2], ":", 2)
 	uri.host = split2[0]
 	if len(split2) < 2 {
@@ -59,7 +59,7 @@ func parseTCP(str string) (*URI, error) {
 	if len(split1) < 3 {
 		return nil, errors.New("incorrect URI format")
 	}
-	uri.scheme = split1[0]
+	uri.scheme = split1[0][:len(split1[0])-1] // Exclude trailing :
 	split2 := strings.SplitN(split1[2], ":", 2)
 	uri.host = split2[0]
 	if len(split2) < 2 {
@@ -81,7 +81,7 @@ func parseWebSocket(str string) (*URI, error) {
 	if len(split1) < 3 {
 		return nil, errors.New("incorrect URI format")
 	}
-	uri.scheme = split1[0]
+	uri.scheme = split1[0][:len(split1[0])-1] // Exclude trailing :
 	split2 := strings.SplitN(split1[2], ":", 2)
 	uri.host = split2[0]
 	if len(split2) < 2 {

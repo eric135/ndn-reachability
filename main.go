@@ -33,23 +33,26 @@ func main() {
 		os.Exit(-2)
 	}
 
-	fmt.Println("Sending Interest for", prefix.String(), "to"+os.Args[1])
+	fmt.Println("Sending Interest for", prefix.String(), "to", os.Args[1])
 
 	var t transport.Transport
 	if uri.scheme == "udp" || uri.scheme == "udp4" || uri.scheme == "udp6" {
 		t = transport.NewUDPTransport(uri.scheme, uri.host, uri.port)
 	} else if uri.scheme == "tcp" || uri.scheme == "tcp4" || uri.scheme == "tcp6" {
-		// TODO
+		t = transport.NewTCPTransport(uri.scheme, uri.host, uri.port)
 	} else if uri.scheme == "ws" {
 		// TODO
+	} else {
+		fmt.Println("ERROR: Unknown scheme", uri.scheme)
+		os.Exit(-2)
 	}
 
 	// Make interest
 	interest := ndn.NewInterest(prefix)
 
 	// Send interest and get whether response received
-	if t.SendAndReceive(interest) != nil {
-		fmt.Println("FAILED: Did not receive Data reply")
+	if err = t.SendAndReceive(interest); err != nil {
+		fmt.Println("FAILED: Did not receive Data reply:", err)
 		os.Exit(1)
 	}
 
