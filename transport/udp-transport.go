@@ -21,14 +21,14 @@ type UDPTransport struct {
 	transportBase
 }
 
-func NewUDPTransport(scheme string, host string, port int) *UDPTransport {
+func NewUDPTransport(scheme string, host string, port int) (*UDPTransport, error) {
 	t := new(UDPTransport)
 	var err error
 	t.conn, err = net.Dial(scheme, host+":"+strconv.Itoa(port))
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return t
+	return t, nil
 }
 
 func (t *UDPTransport) SendAndReceive(interest *ndn.Interest) (time.Duration, error) {

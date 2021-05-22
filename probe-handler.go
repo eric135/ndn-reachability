@@ -10,6 +10,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/eric135/YaNFD/ndn"
@@ -17,6 +18,7 @@ import (
 )
 
 type ProbeHandler struct {
+	results sync.Map
 }
 
 type probeResult struct {
@@ -42,6 +44,11 @@ func (p *ProbeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 
 	transportStr := req.Form.Get("transport")
+	if transportStr != "udp4" && transportStr != "udp6" && transportStr != "wss-ipv4" && transportStr != "wss-ipv6" && transportStr != "http3-ipv4" && transportStr != "http3-ipv6" {
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte("Unknown transport"))
+		return
+	}
 	routers := req.Form["router"]
 	nameStr := req.Form.Get("name")
 	suffix := req.Form.Get("suffix")
@@ -61,42 +68,52 @@ func (p *ProbeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	interest := ndn.NewInterest(name)
 
-	results := make(map[string]probeResult)
+	wg := new(sync.WaitGroup)
 	for _, router := range routers {
-		var t transport.Transport
-		if transportStr == "udp4" || transportStr == "udp6" {
-			uri, err := parseUDP(router)
-			if err != nil {
-				res.WriteHeader(http.StatusBadRequest)
-				res.Write([]byte("Bad URI"))
-				return
-			}
-			t = transport.NewUDPTransport(transportStr, uri.host, uri.port)
-		} else if transportStr == "wss-ipv4" || transportStr == "wss-ipv6" {
-			// TODO
-		} else if transportStr == "http3-ipv4" || transportStr == "http3-ipv6" {
-			// TODO
-		} else {
-			res.WriteHeader(http.StatusBadRequest)
-			res.Write([]byte("Unknown transport"))
-			return
-		}
-
-		// If nil, error establishing connection
-		if t == nil {
-			results[router] = probeResult{Ok: false, Err: "internal error"}
-		}
-
-		// Send and receive
-		if rtt, err := t.SendAndReceive(interest); err != nil {
-			results[router] = probeResult{Ok: false, Err: err.Error()}
-		} else {
-			results[router] = probeResult{Ok: true, RTT: uint(rtt.Milliseconds())}
-		}
+		wg.Add(1)
+		go p.probe(transportStr, router, interest, wg)
 	}
+	wg.Wait()
 
 	res.Header().Add("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
 	encoder := json.NewEncoder(res)
-	encoder.Encode(results)
+
+	// Convert sync.Map to map
+	resultsMap := make(map[string]probeResult)
+	p.results.Range(func(key interface{}, value interface{}) bool {
+		resultsMap[key.(string)] = value.(probeResult)
+		return true
+	})
+
+	encoder.Encode(resultsMap)
+}
+
+func (p *ProbeHandler) probe(transportStr string, router string, interest *ndn.Interest, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	var t transport.Transport
+	if transportStr == "udp4" || transportStr == "udp6" {
+		uri, err := parseUDP(router)
+		if err != nil {
+			p.results.Store(router, probeResult{Ok: false, Err: "bad router"})
+			return
+		}
+		t, err = transport.NewUDPTransport(transportStr, uri.host, uri.port)
+		if err != nil {
+			p.results.Store(router, probeResult{Ok: false, Err: "unable to connect"})
+			return
+		}
+	} else if transportStr == "wss-ipv4" || transportStr == "wss-ipv6" {
+		// TODO
+	} else if transportStr == "http3-ipv4" || transportStr == "http3-ipv6" {
+		// TODO
+	}
+
+	// Send and receive
+	if rtt, err := t.SendAndReceive(interest); err != nil {
+		p.results.Store(router, probeResult{Ok: false, Err: err.Error()})
+	} else {
+		p.results.Store(router, probeResult{Ok: true, RTT: uint(rtt.Milliseconds())})
+	}
 }
