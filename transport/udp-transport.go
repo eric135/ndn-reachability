@@ -31,14 +31,14 @@ func NewUDPTransport(scheme string, host string, port int) *UDPTransport {
 	return t
 }
 
-func (t *UDPTransport) SendAndReceive(interest *ndn.Interest) error {
+func (t *UDPTransport) SendAndReceive(interest *ndn.Interest) (time.Duration, error) {
 	block, err := interest.Encode()
 	if err != nil {
-		return errors.New("unable to encode Interest")
+		return 0, errors.New("internal error")
 	}
 	wire, err := block.Wire()
 	if err != nil {
-		return errors.New("unable to encode Interest")
+		return 0, errors.New("internal error")
 	}
 	t.conn.Write(wire)
 	t.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
@@ -53,17 +53,17 @@ func (t *UDPTransport) SendAndReceive(interest *ndn.Interest) error {
 
 		// If err not nil, likely timed out or another issue
 		if err != nil {
-			return err
+			return 0, errors.New("timeout")
 		}
 
 		// Make sure reply is Data packet and not Nack
 		err = t.validateReceivedWire(readBuf[:readSize])
 		if err == nil {
-			return nil
+			return time.Since(startTime), nil
 		}
 	}
 
 	// Return last error
 	t.conn.Close()
-	return err
+	return 0, err
 }

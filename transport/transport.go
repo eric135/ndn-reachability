@@ -9,6 +9,7 @@ package transport
 
 import (
 	"errors"
+	"time"
 
 	"github.com/eric135/YaNFD/ndn"
 	"github.com/eric135/YaNFD/ndn/lpv2"
@@ -16,7 +17,7 @@ import (
 )
 
 type Transport interface {
-	SendAndReceive(interest *ndn.Interest) error
+	SendAndReceive(interest *ndn.Interest) (time.Duration, error)
 }
 
 type transportBase struct {
@@ -38,7 +39,7 @@ func (t *transportBase) validateReceivedWire(wire []byte) error {
 		return errors.New("empty response received")
 	}
 
-	if len(lpPacket.Fragment()) == 0 || lpPacket.Fragment()[0] != tlv.Data {
+	if len(lpPacket.Fragment()) == 0 || (lpPacket.FragIndex() != nil && *lpPacket.FragIndex() == 0) || lpPacket.Fragment()[0] != tlv.Data {
 		return errors.New("non-data type received")
 	}
 	return nil
