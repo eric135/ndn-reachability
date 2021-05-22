@@ -24,13 +24,13 @@ type URI struct {
 func ParseUDP(str string) (*URI, error) {
 	uri := new(URI)
 	uri.Scheme = "udp"
-	split := strings.SplitN(str, ":", 2)
-	if len(split) < 2 {
-		return nil, errors.New("incorrect URI format")
-	}
-	uri.Host = split[0]
 	var err error
-	uri.Port, err = strconv.Atoi(split[1])
+	var portStr string
+	uri.Host, portStr, err = net.SplitHostPort(str)
+	if err != nil {
+		return nil, errors.New("missing port")
+	}
+	uri.Port, err = strconv.Atoi(portStr)
 	if err != nil {
 		return nil, errors.New("could not convert port to integer")
 	}
@@ -59,7 +59,11 @@ func ParseWebSocket(str string) (*URI, error) {
 	if err != nil {
 		// Has no port specified - use defaults
 		uri.Host = split1[2]
-		uri.Port = 9696
+		if uri.Scheme == "ws" {
+			uri.Port = 9696
+		} else {
+			uri.Port = 443
+		}
 	} else {
 		uri.Port, err = strconv.Atoi(portStr)
 		if err != nil {
