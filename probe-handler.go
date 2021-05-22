@@ -15,10 +15,10 @@ import (
 
 	"github.com/eric135/YaNFD/ndn"
 	"github.com/eric135/ndn-reachability/transport"
+	"github.com/eric135/ndn-reachability/uri"
 )
 
 type ProbeHandler struct {
-	results sync.Map
 }
 
 type probeResult struct {
@@ -69,9 +69,10 @@ func (p *ProbeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	interest := ndn.NewInterest(name)
 
 	wg := new(sync.WaitGroup)
+	var results sync.Map
 	for _, router := range routers {
 		wg.Add(1)
-		go p.probe(transportStr, router, interest, wg)
+		go p.probe(transportStr, router, interest, &results, wg)
 	}
 	wg.Wait()
 
@@ -81,7 +82,7 @@ func (p *ProbeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	// Convert sync.Map to map
 	resultsMap := make(map[string]probeResult)
-	p.results.Range(func(key interface{}, value interface{}) bool {
+	results.Range(func(key interface{}, value interface{}) bool {
 		resultsMap[key.(string)] = value.(probeResult)
 		return true
 	})
@@ -89,31 +90,36 @@ func (p *ProbeHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	encoder.Encode(resultsMap)
 }
 
-func (p *ProbeHandler) probe(transportStr string, router string, interest *ndn.Interest, wg *sync.WaitGroup) {
+func (p *ProbeHandler) probe(transportStr string, router string, interest *ndn.Interest, results *sync.Map, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	var t transport.Transport
 	if transportStr == "udp4" || transportStr == "udp6" {
-		uri, err := parseUDP(router)
+		uri, err := uri.ParseUDP(router)
 		if err != nil {
-			p.results.Store(router, probeResult{Ok: false, Err: "bad router"})
+			results.Store(router, probeResult{Ok: false, Err: "bad router"})
 			return
 		}
-		t, err = transport.NewUDPTransport(transportStr, uri.host, uri.port)
+		t, err = transport.NewUDPTransport(transportStr, uri.Host, uri.Port)
 		if err != nil {
-			p.results.Store(router, probeResult{Ok: false, Err: "unable to connect"})
+			results.Store(router, probeResult{Ok: false, Err: "unable to connect"})
 			return
 		}
 	} else if transportStr == "wss-ipv4" || transportStr == "wss-ipv6" {
-		// TODO
+		var err error
+		t, err = transport.NewWebSocketTransport(transportStr, router)
+		if err != nil {
+			results.Store(router, probeResult{Ok: false, Err: "unable to connect"})
+			return
+		}
 	} else if transportStr == "http3-ipv4" || transportStr == "http3-ipv6" {
 		// TODO
 	}
 
 	// Send and receive
 	if rtt, err := t.SendAndReceive(interest); err != nil {
-		p.results.Store(router, probeResult{Ok: false, Err: err.Error()})
+		results.Store(router, probeResult{Ok: false, Err: err.Error()})
 	} else {
-		p.results.Store(router, probeResult{Ok: true, RTT: uint(rtt.Milliseconds())})
+		results.Store(router, probeResult{Ok: true, RTT: uint(rtt.Milliseconds())})
 	}
 }
