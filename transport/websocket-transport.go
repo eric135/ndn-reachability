@@ -36,9 +36,9 @@ func NewWebSocketTransport(protocol string, wsUri string) (*WebSocketTransport, 
 		}
 
 		if protocol == "wss-ipv4" {
-			return net.Dial("tcp4", u.Host+":"+strconv.Itoa(u.Port))
+			return net.Dial("tcp4", net.JoinHostPort(u.Host, strconv.Itoa(u.Port)))
 		} else {
-			return net.Dial("tcp6", u.Host+":"+strconv.Itoa(u.Port))
+			return net.Dial("tcp6", net.JoinHostPort(u.Host, strconv.Itoa(u.Port)))
 		}
 	}
 

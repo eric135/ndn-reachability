@@ -24,7 +24,7 @@ type UDPTransport struct {
 func NewUDPTransport(scheme string, host string, port int) (*UDPTransport, error) {
 	t := new(UDPTransport)
 	var err error
-	t.conn, err = net.Dial(scheme, host+":"+strconv.Itoa(port))
+	t.conn, err = net.Dial(scheme, net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return nil, err
 	}
