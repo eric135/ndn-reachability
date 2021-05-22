@@ -41,18 +41,29 @@ func (t *TCPTransport) SendAndReceive(interest *ndn.Interest) error {
 		return errors.New("unable to encode Interest")
 	}
 	t.conn.Write(wire)
+	t.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+
+	startTime := time.Now()
 
 	// Wait for response until timeout
-	t.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 	readBuf := make([]byte, 8800)
-	readSize, err := t.conn.Read(readBuf)
-	t.conn.Close()
+	for time.Now().Before(startTime.Add(time.Second * 5)) {
+		var readSize int
+		readSize, err = t.conn.Read(readBuf)
 
-	// If err not nil, likely timed out or another issue
-	if err != nil {
-		return err
+		// If err not nil, likely timed out or another issue
+		if err != nil {
+			return err
+		}
+
+		// Make sure reply is Data packet and not Nack
+		err = t.validateReceivedWire(readBuf[:readSize])
+		if err == nil {
+			return nil
+		}
 	}
 
-	// Make sure reply is Data packet and not Nack
-	return t.validateReceivedWire(readBuf[:readSize])
+	// Return last error
+	t.conn.Close()
+	return err
 }
