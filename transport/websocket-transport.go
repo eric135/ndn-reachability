@@ -8,6 +8,7 @@
 package transport
 
 import (
+	"context"
 	"errors"
 	"net"
 	"strconv"
@@ -35,10 +36,13 @@ func NewWebSocketTransport(protocol string, wsUri string) (*WebSocketTransport, 
 			return nil, err
 		}
 
+		var dialer net.Dialer
+		dialContext, cancelDialContext := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancelDialContext()
 		if protocol == "wss-ipv4" {
-			return net.Dial("tcp4", net.JoinHostPort(u.Host, strconv.Itoa(u.Port)))
+			return dialer.DialContext(dialContext, "tcp4", net.JoinHostPort(u.Host, strconv.Itoa(u.Port)))
 		} else {
-			return net.Dial("tcp6", net.JoinHostPort(u.Host, strconv.Itoa(u.Port)))
+			return dialer.DialContext(dialContext, "tcp6", net.JoinHostPort(u.Host, strconv.Itoa(u.Port)))
 		}
 	}
 
